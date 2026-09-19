@@ -1,44 +1,141 @@
-name: 'Action Name'
-description: 'Action Description'
+name: CloudFormation Stack Delete Action
+description: Delete a CloudFormation stack with wait completion and GitHub Actions summary logging
 
 inputs:
-  input-1:
-    description: Input description.
-    required: false
-    default: default-value
-  input-2:
-    description: Input description.
-    required: false
-    default: default-value
-  input-3:
-    description: Input description.
-    required: false
-    default: default-value
-  github-token:
-    description: 'GitHub token'
+  stack-name:
+    description: Name of the CloudFormation stack to delete
     required: true
+  aws-region:
+    description: AWS region where the CloudFormation stack exists
+    required: true
+    default: us-east-1
+
+outputs:
+  stack-status:
+    description: Final status of the CloudFormation stack deletion
+    value: ${{ steps.delete-stack.outputs.status }}
+  deletion-time:
+    description: Time taken to complete stack deletion (minutes)
+    value: ${{ steps.delete-stack.outputs.deletion-time }}
 
 runs:
-  using: 'composite'
+  using: composite
   steps:
-    - name: Set up Python
-      uses: actions/setup-python@v7
-      with:
-        python-version: 3.x
-
-    - name: Sample step to call GitHub API
+    - name: Delete CloudFormation Stack
+      id: delete-stack
       shell: bash
-      env:
-        GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
-        ISSUE_NUMBER="${{ github.event.issue.number }}"
-        REPO="${{ github.repository }}"
-        OWNER=$(echo $REPO | cut -d'/' -f1)
-        BRANCH_NAME="${{ steps.create-branch.outputs.branch-name }}"
-        COMMENT_BODY="Branch [$BRANCH_NAME](https://github.com/$OWNER/$REPO/tree/$BRANCH_NAME) created 🚀"
+        set -e
+        
+        STACK_NAME="${{ inputs.stack-name }}"
+        AWS_REGION="${{ inputs.aws-region }}"
+        START_TIME=$(date +%s)
+        
+        echo "🔍 Checking if stack exists..."
+        if ! aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "$AWS_REGION" &>/dev/null; then
+          echo "❌ Stack '$STACK_NAME' does not exist in region '$AWS_REGION'"
+          echo "status=STACK_NOT_FOUND" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+        
+        echo "✅ Stack found. Initiating deletion..."
+        
+        # Initiate stack deletion
+        aws cloudformation delete-stack \
+          --stack-name "$STACK_NAME" \
+          --region "$AWS_REGION" 2>&1
+        
+        echo "⏳ Waiting for stack deletion to complete (this may take several minutes)..."
+        
+        # Wait for stack deletion to complete
+        if aws cloudformation wait stack-delete-complete \
+          --stack-name "$STACK_NAME" \
+          --region "$AWS_REGION" 2>&1; then
+          
+          DELETION_STATUS="SUCCESS"
+          echo "✅ Stack deletion completed successfully"
+        else
+          # Check if stack still exists or if deletion failed
+          if aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "$AWS_REGION" &>/dev/null; then
+            DELETION_STATUS="FAILED"
+            echo "❌ Stack deletion failed - stack still exists"
+            exit 1
+          else
+            DELETION_STATUS="SUCCESS"
+            echo "✅ Stack has been deleted"
+          fi
+        fi
+        
+        END_TIME=$(date +%s)
+        DURATION=$((($END_TIME - $START_TIME) / 60))
+        
+        echo "status=$DELETION_STATUS" >> $GITHUB_OUTPUT
+        echo "deletion-time=$DURATION" >> $GITHUB_OUTPUT
 
-        curl -s -X POST \
-          -H "Authorization: token $GITHUB_TOKEN" \
-          -H "Content-Type: application/json" \
-          -d "{\"body\": \"$COMMENT_BODY\"}" \
-          https://api.github.com/repos/$REPO/issues/$ISSUE_NUMBER/comments
+    - name: Get CloudFormation Stack Events
+      id: stack-events
+      shell: bash
+      if: always()
+      run: |
+        STACK_NAME="${{ inputs.stack-name }}"
+        AWS_REGION="${{ inputs.aws-region }}"
+        
+        echo "Retrieving CloudFormation stack events..."
+        
+        # Try to get stack events (may fail if stack is already deleted)
+        aws cloudformation describe-stack-events \
+          --stack-name "$STACK_NAME" \
+          --region "$AWS_REGION" \
+          --query 'StackEvents[?contains(ResourceType, `AWS::`) || ResourceType == `AWS::CloudFormation::Stack`].[Timestamp,LogicalResourceId,ResourceType,ResourceStatus,ResourceStatusReason]' \
+          --output table 2>/dev/null || echo "Stack events no longer available (stack deleted)"
+
+    - name: Generate GitHub Actions Summary
+      shell: bash
+      if: always()
+      run: |
+        STACK_NAME="${{ inputs.stack-name }}"
+        AWS_REGION="${{ inputs.aws-region }}"
+        STATUS="${{ steps.delete-stack.outputs.stack-status }}"
+        DURATION="${{ steps.delete-stack.outputs.deletion-time }}"
+        TIMESTAMP=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+        
+        {
+          echo "# CloudFormation Stack Deletion Report"
+          echo ""
+          echo "## Stack Details"
+          echo "| Property | Value |"
+          echo "|----------|-------|"
+          echo "| **Stack Name** | \`$STACK_NAME\` |"
+          echo "| **Region** | \`$AWS_REGION\` |"
+          echo "| **Deletion Status** | $STATUS |"
+          echo "| **Duration** | $DURATION minutes |"
+          echo "| **Timestamp** | $TIMESTAMP |"
+          echo ""
+          echo "## Deletion Summary"
+          
+          if [ "$STATUS" = "SUCCESS" ]; then
+            echo "✅ **Stack deletion completed successfully**"
+            echo ""
+            echo "The CloudFormation stack '$STACK_NAME' has been removed from AWS region '$AWS_REGION'."
+          elif [ "$STATUS" = "STACK_NOT_FOUND" ]; then
+            echo "⚠️ **Stack not found**"
+            echo ""
+            echo "The CloudFormation stack '$STACK_NAME' does not exist in region '$AWS_REGION'."
+          else
+            echo "❌ **Stack deletion failed**"
+            echo ""
+            echo "The CloudFormation stack '$STACK_NAME' could not be deleted. Please review the logs above for details."
+          fi
+          
+          echo ""
+          echo "---"
+          echo "_Generated by cfn-delete-action_"
+        } >> $GITHUB_STEP_SUMMARY
+
+    - name: Display Summary
+      shell: bash
+      if: always()
+      run: |
+        echo "📋 Summary has been posted to GitHub Actions summary"
+        echo "Status: ${{ steps.delete-stack.outputs.stack-status }}"
+        echo "Time taken: ${{ steps.delete-stack.outputs.deletion-time }} minutes"
