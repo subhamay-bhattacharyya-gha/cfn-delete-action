@@ -95,7 +95,7 @@ runs:
       run: |
         STACK_NAME="${{ inputs.stack-name }}"
         AWS_REGION="${{ inputs.aws-region }}"
-        STATUS="${{ steps.delete-stack.outputs.stack-status }}"
+        STATUS="${{ steps.delete-stack.outputs.status }}"
         DURATION="${{ steps.delete-stack.outputs.deletion-time }}"
         TIMESTAMP=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
         
