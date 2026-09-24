@@ -1,3 +1,15 @@
+# 1.0.0 (2026-09-24)
+
+
+### Bug Fixes
+
+* Correct output reference for stack status in GitHub Actions summary ([07ce950](https://github.com/subhamay-bhattacharyya-gha/cfn-delete-action/commit/07ce95001c8f730fc17c11387b307cd10a88cdae))
+
+
+### Features
+
+* Add CloudFormation Delete Stack Action with comprehensive logging and error handling ([f17bbb9](https://github.com/subhamay-bhattacharyya-gha/cfn-delete-action/commit/f17bbb9d5b698ae9c364f430a59e367d7703ac1a))
+
 ## [1.1.2](https://github.com/subhamay-bhattacharyya-gha/cfn-delete-action/compare/v1.1.1...v1.1.2) (2025-05-21)
 
 
