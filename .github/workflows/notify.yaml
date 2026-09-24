@@ -7,6 +7,9 @@ on:
   issues:
     types: [opened]
 
+permissions:
+  contents: read
+
 jobs:
   notify:
     uses: subhamay-bhattacharyya-gha/slack-notification-wf/.github/workflows/slack-notify.yaml@main
