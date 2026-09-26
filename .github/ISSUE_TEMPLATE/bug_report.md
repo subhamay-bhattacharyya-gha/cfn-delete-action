@@ -27,7 +27,7 @@ assignees: ''
 <!-- Information about your environment -->
 
 - **Action Version**: <!-- e.g., v1.0.0 or @main -->
-- **GitHub Runner**: <!-- e.g., ubuntu-latest, macos-latest, windows-latest -->
+- **GitHub Runner**: <!-- e.g., ubuntu-26.04, macos-latest, windows-latest -->
 - **Workflow Trigger**: <!-- e.g., push, pull_request, workflow_dispatch -->
 - **OS (if local testing)**: <!-- e.g., macOS 13, Ubuntu 22.04 -->
 - **Node.js Version**: <!-- if applicable -->
