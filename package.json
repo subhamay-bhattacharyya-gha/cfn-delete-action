@@ -1,7 +1,6 @@
 {
   "name": "cfn-delete-action",
-  "version": "0.0.0",
-  "description": "A GitHub Action for deleting AWS CloudFormation stacks",
+  "description": "A GitHub Composite Action for deleting AWS CloudFormation stacks",
   "main": "index.js",
   "scripts": {
     "release": "semantic-release"
